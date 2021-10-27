@@ -17,4 +17,10 @@ impl std::fmt::Display for HttpError {
     }
 }
 
-impl std::error::Error for HttpError {}
+impl<E: std::error::Error> From<E> for HttpError {
+    fn from(e: E) -> Self {
+        Self {
+            message: e.to_string(),
+        }
+    }
+}
