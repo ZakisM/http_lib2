@@ -1,3 +1,5 @@
+use crate::convert_error;
+
 #[derive(Debug)]
 pub struct HttpError {
     message: String,
@@ -17,10 +19,20 @@ impl std::fmt::Display for HttpError {
     }
 }
 
-impl<E: std::error::Error> From<E> for HttpError {
-    fn from(e: E) -> Self {
-        Self {
-            message: e.to_string(),
+impl std::error::Error for HttpError {}
+
+convert_error!(std::io::Error);
+convert_error!(std::num::ParseIntError);
+convert_error!(std::str::Utf8Error);
+convert_error!(std::num::TryFromIntError);
+
+#[macro_export]
+macro_rules! convert_error {
+    ($err:path) => {
+        impl From<$err> for HttpError {
+            fn from(e: $err) -> Self {
+                Self::new(e.to_string())
+            }
         }
-    }
+    };
 }

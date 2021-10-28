@@ -1,15 +1,97 @@
 use std::str::FromStr;
 
+use crate::body::Body;
 use crate::error::HttpError;
+use crate::header_item::HeaderItem;
 use crate::header_map::HeaderMap;
+use crate::http_item::HttpItem;
 use crate::method::Method;
+
+#[derive(Debug, Default)]
+pub struct RequestBuilder {
+    header: RequestHeader,
+    body: Option<Body>,
+}
+
+impl RequestBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn method(mut self, method: Method) -> Self {
+        self.header.method = method;
+        self
+    }
+
+    pub fn uri(mut self, uri: &str) -> Self {
+        self.header.uri = uri.to_owned();
+        self
+    }
+
+    pub fn version(mut self, version: f32) -> Self {
+        self.header.version = version;
+        self
+    }
+
+    pub fn header_map(mut self, header_map: HeaderMap) -> Self {
+        self.header.header_map = header_map;
+        self
+    }
+
+    pub fn set_header_key_val(&mut self, key: &str, val: &str) {
+        self.header.header_map.insert_by_str_key_value(key, val);
+    }
+
+    pub fn body<T: AsRef<[u8]>>(mut self, body: T) -> Self {
+        let body_len = body.as_ref().len();
+
+        self.header
+            .header_map
+            .insert_by_str_key_value("content-length", &body_len.to_string());
+
+        self.body = Some(Body::new(body));
+        self
+    }
+
+    pub fn build(self) -> Request {
+        Request {
+            header: self.header,
+            body: self.body,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Request {
+    pub header: RequestHeader,
+    pub body: Option<Body>,
+}
+
+impl HttpItem for Request {
+    type Header = RequestHeader;
+
+    fn from_header_body(header: Self::Header, body: Option<Body>) -> Self {
+        Self { header, body }
+    }
+}
 
 #[derive(Debug)]
 pub struct RequestHeader {
     pub method: Method,
-    pub path: String,
+    pub uri: String,
     pub version: f32,
-    pub headers: HeaderMap,
+    header_map: HeaderMap,
+}
+
+impl std::default::Default for RequestHeader {
+    fn default() -> Self {
+        Self {
+            method: Method::GET,
+            uri: "/".to_owned(),
+            version: 1.1,
+            header_map: HeaderMap::default(),
+        }
+    }
 }
 
 impl FromStr for RequestHeader {
@@ -42,10 +124,16 @@ impl FromStr for RequestHeader {
 
         Ok(Self {
             method,
-            path: path.to_owned(),
+            uri: path.to_owned(),
             version,
-            headers,
+            header_map: headers,
         })
+    }
+}
+
+impl HeaderItem for RequestHeader {
+    fn header_map(&self) -> &HeaderMap {
+        &self.header_map
     }
 }
 
@@ -70,25 +158,25 @@ mod tests {
         let request = RequestHeader::from_str(sample_request).unwrap();
 
         assert_eq!(request.method, Method::GET);
-        assert_eq!(request.path, "/test");
+        assert_eq!(request.uri, "/test");
         assert_eq!(request.version, 1.1);
 
-        let headers = &request.headers;
+        let headers = &request.header_map;
 
-        assert_eq!(headers.get_by_key("host"), Some("www.example.com"));
-        assert_eq!(headers.get_by_key("user-agent"), Some("Mozilla/5.0"));
+        assert_eq!(headers.get_by_str_key("host"), Some("www.example.com"));
+        assert_eq!(headers.get_by_str_key("user-agent"), Some("Mozilla/5.0"));
         assert_eq!(
-            headers.get_by_key("accept"),
+            headers.get_by_str_key("accept"),
             Some("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
         );
         assert_eq!(
-            headers.get_by_key("accept-language"),
+            headers.get_by_str_key("accept-language"),
             Some("en-GB,en;q=0.5")
         );
         assert_eq!(
-            headers.get_by_key("accept-encoding"),
+            headers.get_by_str_key("accept-encoding"),
             Some("gzip, deflate, br")
         );
-        assert_eq!(headers.get_by_key("connection"), Some("keep-alive"));
+        assert_eq!(headers.get_by_str_key("connection"), Some("keep-alive"));
     }
 }

@@ -8,12 +8,18 @@ pub struct Body {
 }
 
 impl Body {
+    pub fn new<T: AsRef<[u8]>>(bytes: T) -> Self {
+        Self {
+            contents: bytes.as_ref().to_vec(),
+        }
+    }
+
     pub fn from_fixed_length<R: Read>(reader: R, content_length: usize) -> Result<Self> {
-        let buf_read = BufReader::new(reader);
+        let buf_reader = BufReader::new(reader);
 
         let mut contents = Vec::with_capacity(content_length);
 
-        buf_read
+        buf_reader
             .take(content_length.try_into()?)
             .read_to_end(&mut contents)?;
 
@@ -21,7 +27,7 @@ impl Body {
     }
 
     pub fn from_chunked_encoding<R: Read>(reader: R) -> Result<Self> {
-        let mut buf_read = BufReader::new(reader);
+        let mut buf_reader = BufReader::new(reader);
 
         let mut contents = Vec::new();
 
@@ -32,10 +38,13 @@ impl Body {
 
         loop {
             if let Some(length) = chunk_length.take() {
-                buf_read.by_ref().take(length).read_to_end(&mut contents)?;
+                buf_reader
+                    .by_ref()
+                    .take(length)
+                    .read_to_end(&mut contents)?;
 
                 //read last two bytes
-                buf_read.by_ref().read_exact(&mut sink)?;
+                buf_reader.by_ref().read_exact(&mut sink)?;
 
                 if length == 0 {
                     break;
@@ -43,7 +52,10 @@ impl Body {
 
                 temp_contents.clear();
             } else {
-                buf_read.by_ref().take(1).read_to_end(&mut temp_contents)?;
+                buf_reader
+                    .by_ref()
+                    .take(1)
+                    .read_to_end(&mut temp_contents)?;
             }
 
             if temp_contents.ends_with(&[13, 10]) {

@@ -1,14 +1,129 @@
+use std::io::Write;
 use std::str::FromStr;
 
+use crate::body::Body;
 use crate::error::HttpError;
+use crate::header_item::HeaderItem;
 use crate::header_map::HeaderMap;
+use crate::http_item::HttpItem;
+use crate::Result;
+
+#[derive(Debug, Default)]
+pub struct ResponseBuilder {
+    header: ResponseHeader,
+    body: Option<Body>,
+}
+
+impl ResponseBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn version(mut self, version: f32) -> Self {
+        self.header.version = version;
+        self
+    }
+
+    pub fn status_code(mut self, code: u16) -> Self {
+        self.header.status_code = code;
+        self
+    }
+
+    pub fn reason_phrase(mut self, phrase: &str) -> Self {
+        self.header.reason_phrase = phrase.to_owned();
+        self
+    }
+
+    pub fn header_map(mut self, header_map: HeaderMap) -> Self {
+        self.header.header_map = header_map;
+        self
+    }
+
+    pub fn set_header_key_val(&mut self, key: &str, val: &str) {
+        self.header.header_map.insert_by_str_key_value(key, val);
+    }
+
+    pub fn body<T: AsRef<[u8]>>(mut self, body: T) -> Self {
+        let body_len = body.as_ref().len();
+
+        self.header
+            .header_map
+            .insert_by_str_key_value("content-length", &body_len.to_string());
+
+        self.body = Some(Body::new(body));
+        self
+    }
+
+    pub fn build(self) -> Response {
+        Response {
+            header: self.header,
+            body: self.body,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Response {
+    pub header: ResponseHeader,
+    pub body: Option<Body>,
+}
+
+impl HttpItem for Response {
+    type Header = ResponseHeader;
+
+    fn from_header_body(header: Self::Header, body: Option<Body>) -> Self {
+        Self { header, body }
+    }
+}
+
+impl Response {
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        let mut bytes = Vec::new();
+
+        write!(
+            bytes,
+            "HTTP/{} {} {}\r\n",
+            self.header.version, self.header.status_code, self.header.reason_phrase
+        )?;
+
+        self.header.header_map.write_to(&mut bytes)?;
+
+        write!(bytes, "\r\n")?;
+
+        if let Some(body) = &self.body {
+            bytes.extend_from_slice(&body.contents);
+        }
+
+        Ok(bytes)
+    }
+
+    pub fn write_to<T: Write>(&self, writer: &mut T) -> Result<()> {
+        let bytes = self.to_bytes()?;
+
+        writer.write_all(&bytes)?;
+        writer.flush()?;
+
+        Ok(())
+    }
+}
 
 #[derive(Debug)]
 pub struct ResponseHeader {
     pub version: f32,
     pub status_code: u16,
     pub reason_phrase: String,
-    pub headers: HeaderMap,
+    header_map: HeaderMap,
+}
+
+impl std::default::Default for ResponseHeader {
+    fn default() -> Self {
+        Self {
+            version: 1.1,
+            status_code: 200,
+            reason_phrase: "OK".to_owned(),
+            header_map: HeaderMap::default(),
+        }
+    }
 }
 
 impl FromStr for ResponseHeader {
@@ -44,8 +159,14 @@ impl FromStr for ResponseHeader {
             version,
             status_code,
             reason_phrase,
-            headers,
+            header_map: headers,
         })
+    }
+}
+
+impl HeaderItem for ResponseHeader {
+    fn header_map(&self) -> &HeaderMap {
+        &self.header_map
     }
 }
 
@@ -72,26 +193,29 @@ mod tests {
         assert_eq!(response.status_code, 200);
         assert_eq!(response.reason_phrase, "OK".to_owned());
 
-        let headers = &response.headers;
+        let headers = &response.header_map;
 
         assert_eq!(
-            headers.get_by_key("date"),
+            headers.get_by_str_key("date"),
             Some("Mon, 23 May 2005 22:38:34 GMT")
         );
         assert_eq!(
-            headers.get_by_key("content-type"),
+            headers.get_by_str_key("content-type"),
             Some("text/html; charset=UTF-8")
         );
         assert_eq!(
-            headers.get_by_key("last-modified"),
+            headers.get_by_str_key("last-modified"),
             Some("Wed, 08 Jan 2003 23:11:55 GMT")
         );
         assert_eq!(
-            headers.get_by_key("server"),
+            headers.get_by_str_key("server"),
             Some("Apache/1.3.3.7 (Unix) (Red-Hat/Linux)")
         );
-        assert_eq!(headers.get_by_key("etag"), Some("\"3f80f-1b6-3e1cb03b\""));
-        assert_eq!(headers.get_by_key("accept-ranges"), Some("bytes"));
-        assert_eq!(headers.get_by_key("connection"), Some("close"));
+        assert_eq!(
+            headers.get_by_str_key("etag"),
+            Some("\"3f80f-1b6-3e1cb03b\"")
+        );
+        assert_eq!(headers.get_by_str_key("accept-ranges"), Some("bytes"));
+        assert_eq!(headers.get_by_str_key("connection"), Some("close"));
     }
 }
