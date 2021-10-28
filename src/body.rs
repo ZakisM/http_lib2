@@ -102,26 +102,26 @@ impl Body {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
+    use std::io::Cursor;
 
     use super::Body;
 
     #[test]
     fn from_fixed_length() {
-        //In test we are reading from a file rather than a stream
-        let f = File::open("./test_files/fixed_length_bytes").unwrap();
+        let bytes_str = "Hello World!";
+        let bytes = Cursor::new(bytes_str);
 
-        let body = Body::from_fixed_length(f, 12).unwrap();
+        let body = Body::from_fixed_length(bytes, 12).unwrap();
 
         assert_eq!(body.contents, b"Hello World!");
     }
 
     #[test]
     fn from_chunked_encoding() {
-        //In test we are reading from a file rather than a stream
-        let f = File::open("./test_files/chunked_encoding_bytes").unwrap();
+        let bytes_str = "7\r\nMozilla\r\n9\r\nDeveloper\r\n7\r\nNetwork\r\n0\r\n\r\n";
+        let bytes = Cursor::new(bytes_str);
 
-        let body = Body::from_chunked_encoding(f).unwrap();
+        let body = Body::from_chunked_encoding(bytes).unwrap();
 
         assert_eq!(
             "MozillaDeveloperNetwork",
