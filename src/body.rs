@@ -38,7 +38,7 @@ impl Body {
 
         loop {
             if let Some(length) = chunk_length.take() {
-                buf_reader
+                let r = buf_reader
                     .by_ref()
                     .take(length)
                     .read_to_end(&mut contents)?;
@@ -46,16 +46,20 @@ impl Body {
                 //read last two bytes
                 buf_reader.by_ref().read_exact(&mut sink)?;
 
-                if length == 0 {
+                if length == 0 || r == 0 {
                     break;
                 }
 
                 temp_contents.clear();
             } else {
-                buf_reader
+                let r = buf_reader
                     .by_ref()
                     .take(1)
                     .read_to_end(&mut temp_contents)?;
+
+                if r == 0 {
+                    break;
+                }
             }
 
             if temp_contents.ends_with(&[13, 10]) {

@@ -14,16 +14,19 @@ pub trait HeaderItem {
         Self: FromStr,
         HttpError: From<<Self as FromStr>::Err>,
     {
-        let mut header_str = String::new();
+        let mut header_buf = Vec::new();
 
-        while !header_str.ends_with("\r\n\r\n") {
-            buf_stream
-                .by_ref()
-                .take(1)
-                .read_to_string(&mut header_str)?;
+        while !header_buf.ends_with(&[13, 10, 13, 10]) {
+            let r = buf_stream.by_ref().take(1).read_to_end(&mut header_buf)?;
+
+            if r == 0 {
+                break;
+            }
         }
 
-        let item = Self::from_str(&header_str)?;
+        let header_str = std::str::from_utf8(&header_buf)?;
+
+        let item = Self::from_str(header_str)?;
 
         Ok(item)
     }
