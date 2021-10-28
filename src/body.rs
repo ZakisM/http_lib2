@@ -1,6 +1,6 @@
 use std::io::{BufReader, Read};
 
-use crate::Result;
+use crate::{error::HttpError, Result};
 
 #[derive(Debug)]
 pub struct Body {
@@ -19,11 +19,18 @@ impl Body {
 
         let mut contents = Vec::with_capacity(content_length);
 
-        buf_reader
+        let r = buf_reader
             .take(content_length.try_into()?)
             .read_to_end(&mut contents)?;
 
-        Ok(Self { contents })
+        if r != content_length {
+            Err(HttpError::new(format!(
+                "Failed to read all of the fixed content length, expected: {} but received: {}.",
+                content_length, r
+            )))
+        } else {
+            Ok(Self { contents })
+        }
     }
 
     pub fn from_chunked_encoding<R: Read>(reader: R) -> Result<Self> {
@@ -36,6 +43,8 @@ impl Body {
 
         let mut sink = [0; 2];
 
+        let mut expected_length = 0;
+
         loop {
             if let Some(length) = chunk_length.take() {
                 let r = buf_reader
@@ -43,10 +52,16 @@ impl Body {
                     .take(length)
                     .read_to_end(&mut contents)?;
 
-                //read last two bytes
+                //read last two bytes which should be CRLF
                 buf_reader.by_ref().read_exact(&mut sink)?;
 
-                if length == 0 || r == 0 {
+                if length == 0 {
+                    break;
+                }
+
+                expected_length += length;
+
+                if r == 0 {
                     break;
                 }
 
@@ -72,7 +87,16 @@ impl Body {
             }
         }
 
-        Ok(Self { contents })
+        let contents_len = contents.len().try_into()?;
+
+        if expected_length != contents_len {
+            Err(HttpError::new(format!(
+                "Failed to read all of the chunked content length, expected: {} but received: {}.",
+                expected_length, contents_len
+            )))
+        } else {
+            Ok(Self { contents })
+        }
     }
 }
 

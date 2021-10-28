@@ -1,21 +1,25 @@
 use crate::convert_error;
 
 #[derive(Debug)]
-pub struct HttpError {
-    message: String,
+pub enum HttpError {
+    ConnectionClosed,
+    Other(String),
 }
 
 impl HttpError {
     pub fn new<T: AsRef<str>>(message: T) -> Self {
-        Self {
-            message: message.as_ref().to_owned(),
-        }
+        Self::Other(message.as_ref().to_owned())
     }
 }
 
 impl std::fmt::Display for HttpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
+        let message = match self {
+            HttpError::ConnectionClosed => "Connection was closed.",
+            HttpError::Other(m) => m,
+        };
+
+        write!(f, "{}", message)
     }
 }
 
