@@ -6,6 +6,7 @@ pub mod header_item;
 pub mod header_map;
 pub mod http_item;
 pub mod method;
+pub mod pool;
 pub mod request;
 pub mod response;
 
