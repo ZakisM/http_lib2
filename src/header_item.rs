@@ -20,7 +20,7 @@ pub trait HeaderItem {
             let r = buf_stream.by_ref().take(1).read_to_end(&mut header_buf)?;
 
             if r == 0 {
-                return Err(HttpError::ConnectionClosed);
+                return Err(HttpError::DataTimeout);
             }
         }
 

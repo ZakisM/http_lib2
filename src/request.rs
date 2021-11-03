@@ -38,8 +38,9 @@ impl RequestBuilder {
         self
     }
 
-    pub fn set_header_key_val(&mut self, key: &str, val: &str) {
+    pub fn insert_header_key_val(mut self, key: &str, val: &str) -> Self {
         self.header.header_map.insert_by_str_key_value(key, val);
+        self
     }
 
     pub fn body<T: AsRef<[u8]>>(mut self, body: T) -> Self {
@@ -47,7 +48,7 @@ impl RequestBuilder {
 
         self.header
             .header_map
-            .insert_by_str_key_value("content-length", &body_len.to_string());
+            .insert_by_str_key_value("Content-Length", &body_len.to_string());
 
         self.body = Some(Body::new(body));
         self

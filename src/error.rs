@@ -1,8 +1,9 @@
 use crate::convert_error;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum HttpError {
     ConnectionClosed,
+    DataTimeout,
     Other(String),
 }
 
@@ -16,6 +17,7 @@ impl std::fmt::Display for HttpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
             HttpError::ConnectionClosed => "Connection was closed.",
+            HttpError::DataTimeout => "Data timed out.",
             HttpError::Other(m) => m,
         };
 
