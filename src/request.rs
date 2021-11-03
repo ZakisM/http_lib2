@@ -10,12 +10,13 @@ use crate::method::Method;
 #[derive(Debug, Default)]
 pub struct RequestBuilder {
     header: RequestHeader,
-    body: Option<Body>,
+    body: Body,
 }
 
 impl RequestBuilder {
     pub fn new() -> Self {
-        Self::default()
+        let r = Self::default();
+        r.body(Body::empty())
     }
 
     pub fn method(mut self, method: Method) -> Self {
@@ -50,7 +51,7 @@ impl RequestBuilder {
             .header_map
             .insert_by_str_key_value("Content-Length", &body_len.to_string());
 
-        self.body = Some(Body::new(body));
+        self.body = Body::new(body);
         self
     }
 
@@ -65,13 +66,13 @@ impl RequestBuilder {
 #[derive(Debug)]
 pub struct Request {
     pub header: RequestHeader,
-    pub body: Option<Body>,
+    pub body: Body,
 }
 
 impl HttpItem for Request {
     type Header = RequestHeader;
 
-    fn from_header_body(header: Self::Header, body: Option<Body>) -> Self {
+    fn from_header_body(header: Self::Header, body: Body) -> Self {
         Self { header, body }
     }
 }

@@ -11,12 +11,13 @@ use crate::Result;
 #[derive(Debug, Default)]
 pub struct ResponseBuilder {
     header: ResponseHeader,
-    body: Option<Body>,
+    body: Body,
 }
 
 impl ResponseBuilder {
     pub fn new() -> Self {
-        Self::default()
+        let r = Self::default();
+        r.body(Body::empty())
     }
 
     pub fn version(mut self, version: f32) -> Self {
@@ -51,7 +52,7 @@ impl ResponseBuilder {
             .header_map
             .insert_by_str_key_value("Content-Length", &body_len.to_string());
 
-        self.body = Some(Body::new(body));
+        self.body = Body::new(body);
         self
     }
 
@@ -66,13 +67,13 @@ impl ResponseBuilder {
 #[derive(Debug)]
 pub struct Response {
     pub header: ResponseHeader,
-    pub body: Option<Body>,
+    pub body: Body,
 }
 
 impl HttpItem for Response {
     type Header = ResponseHeader;
 
-    fn from_header_body(header: Self::Header, body: Option<Body>) -> Self {
+    fn from_header_body(header: Self::Header, body: Body) -> Self {
         Self { header, body }
     }
 }
@@ -91,9 +92,7 @@ impl Response {
 
         write!(bytes, "\r\n")?;
 
-        if let Some(body) = &self.body {
-            bytes.extend_from_slice(&body.contents);
-        }
+        bytes.extend_from_slice(&self.body.contents);
 
         Ok(bytes)
     }

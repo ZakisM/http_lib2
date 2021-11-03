@@ -7,10 +7,28 @@ pub struct Body {
     pub contents: Vec<u8>,
 }
 
+impl std::default::Default for Body {
+    fn default() -> Self {
+        Body::empty()
+    }
+}
+
+impl AsRef<[u8]> for Body {
+    fn as_ref(&self) -> &[u8] {
+        self.contents.as_ref()
+    }
+}
+
 impl Body {
     pub fn new<T: AsRef<[u8]>>(bytes: T) -> Self {
         Self {
             contents: bytes.as_ref().to_vec(),
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            contents: Vec::new(),
         }
     }
 
