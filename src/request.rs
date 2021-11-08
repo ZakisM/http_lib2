@@ -10,13 +10,12 @@ use crate::method::Method;
 #[derive(Debug, Default)]
 pub struct RequestBuilder {
     header: RequestHeader,
-    body: Body,
+    body: Option<Body>,
 }
 
 impl RequestBuilder {
     pub fn new() -> Self {
-        let r = Self::default();
-        r.body(Body::empty())
+        Self::default()
     }
 
     pub fn method(mut self, method: Method) -> Self {
@@ -51,14 +50,14 @@ impl RequestBuilder {
             .header_map
             .insert_by_str_key_value("Content-Length", &body_len.to_string());
 
-        self.body = Body::new(body);
+        self.body = Some(Body::new(body));
         self
     }
 
     pub fn build(self) -> Request {
         Request {
             header: self.header,
-            body: self.body,
+            body: self.body.unwrap_or_else(Body::empty),
         }
     }
 }

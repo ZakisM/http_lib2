@@ -6,22 +6,28 @@ use crate::error::HttpError;
 use crate::header_item::HeaderItem;
 use crate::header_map::HeaderMap;
 use crate::http_item::HttpItem;
+use crate::http_status::HttpStatus;
 use crate::Result;
 
 #[derive(Debug, Default)]
 pub struct ResponseBuilder {
     header: ResponseHeader,
-    body: Body,
+    body: Option<Body>,
 }
 
 impl ResponseBuilder {
     pub fn new() -> Self {
-        let r = Self::default();
-        r.body(Body::empty())
+        Self::default()
     }
 
     pub fn version(mut self, version: f32) -> Self {
         self.header.version = version;
+        self
+    }
+
+    pub fn status(mut self, http_status: HttpStatus) -> Self {
+        self.header.status_code = http_status.into();
+        self.header.reason_phrase = http_status.to_string();
         self
     }
 
@@ -52,15 +58,23 @@ impl ResponseBuilder {
             .header_map
             .insert_by_str_key_value("Content-Length", &body_len.to_string());
 
-        self.body = Body::new(body);
+        self.body = Some(Body::new(body));
         self
     }
 
-    pub fn build(self) -> Response {
-        Response {
-            header: self.header,
-            body: self.body,
-        }
+    pub fn build(mut self) -> Response {
+        let (header, body) = if let Some(body) = self.body {
+            (self.header, body)
+        } else {
+            // If the Status Code is not 204/No Content then we set the Content-Length header to 0.
+            if self.header.status_code != HttpStatus::NoContent.into() {
+                self = self.body(Body::empty());
+            }
+
+            (self.header, self.body.unwrap_or_else(Body::empty))
+        };
+
+        Response { header, body }
     }
 }
 
@@ -117,10 +131,12 @@ pub struct ResponseHeader {
 
 impl std::default::Default for ResponseHeader {
     fn default() -> Self {
+        let status = HttpStatus::OK;
+
         Self {
             version: 1.1,
-            status_code: 200,
-            reason_phrase: "OK".to_owned(),
+            status_code: status.into(),
+            reason_phrase: status.to_string(),
             header_map: HeaderMap::default(),
         }
     }
