@@ -10,5 +10,6 @@ pub mod method;
 pub mod pool;
 pub mod request;
 pub mod response;
+pub mod server;
 
 type Result<T> = std::result::Result<T, HttpError>;

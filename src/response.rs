@@ -71,6 +71,7 @@ impl ResponseBuilder {
                 self = self.body(Body::empty());
             }
 
+            //Body must always be set, even if it is empty
             (self.header, self.body.unwrap_or_else(Body::empty))
         };
 
