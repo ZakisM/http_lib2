@@ -2,7 +2,7 @@ use std::{fmt::Display, str::FromStr};
 
 use crate::error::HttpError;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Method {
     GET,
     HEAD,
