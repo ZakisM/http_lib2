@@ -31,6 +31,7 @@ convert_error!(std::io::Error);
 convert_error!(std::num::ParseIntError);
 convert_error!(std::str::Utf8Error);
 convert_error!(std::num::TryFromIntError);
+convert_error!(std::env::VarError);
 
 #[macro_export]
 macro_rules! convert_error {

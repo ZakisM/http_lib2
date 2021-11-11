@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+use crate::Result;
+
 type Task = Box<dyn FnOnce() + Send + 'static>;
 
 pub struct ThreadPool {
@@ -16,8 +18,19 @@ pub struct ThreadPool {
     _workers: Vec<JoinHandle<()>>,
 }
 
+impl std::fmt::Debug for ThreadPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ThreadPool")
+            .field("_num_of_tasks", &self._num_of_tasks)
+            .field("_workers", &self._workers)
+            .finish()
+    }
+}
+
 impl ThreadPool {
-    pub fn new(cores: u8) -> Self {
+    pub fn new() -> Result<Self> {
+        let num_cpus = Self::num_cpus()?;
+
         let _num_of_tasks = Arc::new(AtomicUsize::new(0));
         let _num_of_tasks_c = _num_of_tasks.clone();
 
@@ -36,16 +49,13 @@ impl ThreadPool {
                     1 => cvar.notify_one(),
                     n if n > 1 => cvar.notify_all(),
                     _ => {
-                        thread::sleep(Duration::from_millis(10));
-                        continue;
+                        thread::sleep(Duration::from_nanos(10));
                     }
                 };
-
-                thread::sleep(Duration::from_nanos(100));
             }
         });
 
-        let available_workers = cores - 1;
+        let available_workers = num_cpus - 1;
 
         let mut _workers = Vec::with_capacity(available_workers as usize);
 
@@ -74,11 +84,11 @@ impl ThreadPool {
             }));
         }
 
-        Self {
+        Ok(Self {
             condvar,
             _num_of_tasks,
             _workers,
-        }
+        })
     }
 
     pub fn spawn<F>(&mut self, task: F)
@@ -90,5 +100,29 @@ impl ThreadPool {
         tasks.push_back(Box::new(task));
 
         self._num_of_tasks.fetch_add(1, Ordering::Release);
+    }
+
+    #[cfg(windows)]
+    fn num_cpus() -> Result<usize> {
+        use std::env;
+
+        let cpus_s = env::var("NUMBER_OF_PROCESSORS")?;
+
+        let cpus = cpus_s.parse::<usize>()?;
+
+        Ok(cpus)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_get_num_cpus() {
+        let cpus = ThreadPool::num_cpus().unwrap();
+
+        assert_eq!(cpus, 8);
     }
 }
