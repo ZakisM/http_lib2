@@ -122,8 +122,9 @@ impl Server {
                 Err(e) => {
                     if e != HttpError::DataTimeout {
                         eprintln!("{}", e);
-                        break;
                     }
+
+                    break;
                 }
             }
         }
