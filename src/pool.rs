@@ -5,7 +5,6 @@ use std::{
         Arc, Condvar, Mutex, MutexGuard,
     },
     thread::{self, JoinHandle},
-    time::Duration,
 };
 
 use crate::Result;
@@ -14,6 +13,7 @@ type Task = Box<dyn FnOnce() + Send + 'static>;
 
 pub struct ThreadPool {
     condvar: Arc<(Mutex<VecDeque<Task>>, Condvar)>,
+    _num_cpus: usize,
     _num_of_tasks: Arc<AtomicUsize>,
     _workers: Vec<JoinHandle<()>>,
 }
@@ -31,54 +31,43 @@ impl ThreadPool {
     pub fn new() -> Result<Self> {
         let num_cpus = Self::num_cpus()?;
 
-        let _num_of_tasks = Arc::new(AtomicUsize::new(0));
-        let _num_of_tasks_c = _num_of_tasks.clone();
+        let num_of_tasks = Arc::new(AtomicUsize::new(0));
 
         let tasks = VecDeque::new();
 
         let condvar = Arc::new((Mutex::new(tasks), Condvar::new()));
-        let condvar_c = condvar.clone();
 
-        thread::spawn(move || {
-            let (_, cvar) = &*condvar_c;
+        let mut workers = Vec::with_capacity(num_cpus as usize);
 
-            loop {
-                let num_tasks = _num_of_tasks_c.load(Ordering::Acquire);
-
-                match num_tasks {
-                    1 => cvar.notify_one(),
-                    n if n > 1 => cvar.notify_all(),
-                    _ => {
-                        thread::sleep(Duration::from_nanos(10));
-                    }
-                };
-            }
-        });
-
-        let available_workers = num_cpus - 1;
-
-        let mut _workers = Vec::with_capacity(available_workers as usize);
-
-        for _ in 0..available_workers {
+        for _ in 0..num_cpus {
             let condvar_c = condvar.clone();
-            let _num_of_tasks_c = _num_of_tasks.clone();
+            let num_of_tasks_c = num_of_tasks.clone();
 
-            _workers.push(thread::spawn(move || {
+            workers.push(thread::spawn(move || {
                 let (tasks_lock, cvar) = &*condvar_c;
 
                 loop {
-                    let task = {
-                        let tasks_lock = tasks_lock.lock().unwrap();
-                        let mut cvar_guard: MutexGuard<VecDeque<Task>> =
-                            cvar.wait(tasks_lock).unwrap();
+                    let current_number_of_tasks = num_of_tasks_c.load(Ordering::Acquire);
 
-                        cvar_guard.pop_front()
+                    let task = {
+                        let mut tasks_lock = tasks_lock.lock().unwrap();
+
+                        if current_number_of_tasks >= num_cpus {
+                            cvar.notify_all();
+
+                            tasks_lock.pop_front()
+                        } else {
+                            let mut cvar_guard: MutexGuard<VecDeque<Task>> =
+                                cvar.wait(tasks_lock).unwrap();
+
+                            cvar_guard.pop_front()
+                        }
                     };
 
                     if let Some(task) = task {
-                        _num_of_tasks_c.fetch_sub(1, Ordering::Release);
-
                         task();
+
+                        num_of_tasks_c.fetch_sub(1, Ordering::Release);
                     }
                 }
             }));
@@ -86,8 +75,9 @@ impl ThreadPool {
 
         Ok(Self {
             condvar,
-            _num_of_tasks,
-            _workers,
+            _num_cpus: num_cpus,
+            _num_of_tasks: num_of_tasks,
+            _workers: workers,
         })
     }
 
@@ -95,11 +85,17 @@ impl ThreadPool {
     where
         F: FnOnce() + Send + 'static,
     {
-        let mut tasks = self.condvar.0.lock().unwrap();
+        let (tasks_lock, cvar) = &*self.condvar;
 
-        tasks.push_back(Box::new(task));
+        {
+            let mut tasks = tasks_lock.lock().unwrap();
+
+            tasks.push_back(Box::new(task));
+        }
 
         self._num_of_tasks.fetch_add(1, Ordering::Release);
+
+        cvar.notify_all();
     }
 
     #[cfg(windows)]

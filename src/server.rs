@@ -3,7 +3,6 @@ use std::{
     io::{BufReader, BufWriter, Read, Write},
     net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
     sync::Arc,
-    thread,
     time::Duration,
 };
 
@@ -127,8 +126,6 @@ impl Server {
                     }
                 }
             }
-
-            thread::sleep(Duration::from_nanos(10));
         }
 
         Ok(())
