@@ -30,6 +30,7 @@ impl std::error::Error for HttpError {}
 convert_error!(std::io::Error);
 convert_error!(std::num::ParseIntError);
 convert_error!(std::str::Utf8Error);
+convert_error!(std::string::FromUtf8Error);
 convert_error!(std::num::TryFromIntError);
 convert_error!(std::env::VarError);
 

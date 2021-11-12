@@ -98,7 +98,7 @@ impl ThreadPool {
         cvar.notify_all();
     }
 
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     fn num_cpus() -> Result<usize> {
         use std::env;
 
@@ -108,17 +108,50 @@ impl ThreadPool {
 
         Ok(cpus)
     }
+
+    #[cfg(target_os = "macos")]
+    fn num_cpus() -> Result<usize> {
+        use std::process::{Command, Stdio};
+
+        use crate::error::HttpError;
+
+        let sysctl_cmd = Command::new("sysctl")
+            .arg("-n")
+            .arg("hw.logicalcpu")
+            .stdout(Stdio::piped())
+            .output()?;
+
+        let cpus = String::from_utf8(sysctl_cmd.stdout)
+            .map_err(HttpError::from)
+            .and_then(|s| {
+                s.lines()
+                    .next()
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .ok_or_else(|| HttpError::new("Failed to read sysctl output"))
+            })?;
+
+        Ok(cpus)
+    }
+
+    #[cfg(target_os = "linux")]
+    fn num_cpus() -> Result<usize> {
+        Ok(8)
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::*;
-
     #[test]
     fn test_get_num_cpus() {
+        use super::*;
+
         let cpus = ThreadPool::num_cpus().unwrap();
 
+        #[cfg(target_os = "windows")]
         assert_eq!(cpus, 8);
+
+        #[cfg(target_os = "macos")]
+        assert_eq!(cpus, 16);
     }
 }
