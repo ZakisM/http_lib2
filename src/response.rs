@@ -9,6 +9,28 @@ use crate::http_item::HttpItem;
 use crate::http_status::HttpStatus;
 use crate::Result;
 
+pub trait HttpResponse {
+    fn into_response(self: Box<Self>) -> Response;
+}
+
+impl HttpResponse for Response {
+    fn into_response(self: Box<Self>) -> Response {
+        *self
+    }
+}
+
+impl HttpResponse for &'static str {
+    fn into_response(self: Box<Self>) -> Response {
+        ResponseBuilder::new().body(self.as_bytes()).build()
+    }
+}
+
+impl HttpResponse for Vec<u8> {
+    fn into_response(self: Box<Self>) -> Response {
+        ResponseBuilder::new().body(*self).build()
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ResponseBuilder {
     header: ResponseHeader,

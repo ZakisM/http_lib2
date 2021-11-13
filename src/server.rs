@@ -14,18 +14,25 @@ use crate::{
     method::Method,
     pool::ThreadPool,
     request::Request,
-    response::{Response, ResponseBuilder},
+    response::{HttpResponse, ResponseBuilder},
     Result,
 };
 
-type Handler = fn(Request) -> Response;
+type HandlerFn = dyn Fn(Request) -> Box<dyn HttpResponse + Send + Sync> + Send + Sync;
 
-type Routes = HashMap<&'static str, HashMap<Method, Handler>>;
+type Routes = HashMap<&'static str, HashMap<Method, Box<HandlerFn>>>;
 
-#[derive(Debug)]
 pub struct Server {
     address: SocketAddrV4,
     routes: Routes,
+}
+
+impl std::fmt::Debug for Server {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Server")
+            .field("address", &self.address)
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -107,7 +114,9 @@ impl Server {
                 Ok(req) => {
                     let response = if let Some(all_handlers) = routes.get(req.header.uri.as_str()) {
                         if let Some(handler) = all_handlers.get(&req.header.method) {
-                            handler(req)
+                            let res = (handler)(req);
+
+                            res.into_response()
                         } else {
                             ResponseBuilder::new()
                                 .status(HttpStatus::MethodNotAllowed)
@@ -136,14 +145,21 @@ impl Server {
 #[macro_export]
 macro_rules! make_handler {
     ($name: ident, $method: path) => {
-        pub fn $name(self, handler: Handler) -> Self {
+        pub fn $name<F, R>(self, handler: F) -> Self
+        where
+            F: Fn(Request) -> R + Send + Sync + 'static,
+            R: HttpResponse + Send + Sync + 'static,
+        {
             let r = self
                 .server
                 .routes
                 .entry(self.uri)
                 .or_insert_with(HashMap::new);
 
-            r.insert($method, handler);
+            let h =
+                Box::new(move |req| Box::new(handler(req)) as Box<dyn HttpResponse + Send + Sync>);
+
+            r.insert($method, h);
 
             self
         }
