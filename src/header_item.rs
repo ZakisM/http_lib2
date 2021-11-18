@@ -4,7 +4,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::{error::HttpError, header_map::HeaderMap, Result};
+use crate::{error::HttpInternalError, header_map::HeaderMap, Result};
 
 pub trait HeaderItem {
     fn header_map(&self) -> &HeaderMap;
@@ -12,7 +12,7 @@ pub trait HeaderItem {
     fn from_stream(buf_stream: &mut BufReader<TcpStream>) -> Result<Self>
     where
         Self: FromStr,
-        HttpError: From<<Self as FromStr>::Err>,
+        HttpInternalError: From<<Self as FromStr>::Err>,
     {
         let mut header_buf = Vec::new();
 
@@ -20,7 +20,7 @@ pub trait HeaderItem {
             let r = buf_stream.by_ref().take(1).read_to_end(&mut header_buf)?;
 
             if r == 0 {
-                return Err(HttpError::DataTimeout);
+                return Err(HttpInternalError::DataTimeout);
             }
         }
 

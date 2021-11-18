@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::fmt::Formatter;
 
-use crate::error::HttpError;
+use crate::error::HttpInternalError;
 use crate::Result;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -84,7 +84,7 @@ impl From<HttpStatus> for u16 {
 }
 
 impl TryFrom<u16> for HttpStatus {
-    type Error = HttpError;
+    type Error = HttpInternalError;
 
     fn try_from(status_code: u16) -> Result<Self> {
         match status_code {
@@ -151,7 +151,7 @@ impl TryFrom<u16> for HttpStatus {
             510 => Ok(HttpStatus::NotExtended),
             511 => Ok(HttpStatus::NetworkAuthenticationRequired),
             599 => Ok(HttpStatus::NetworkConnectTimeoutError),
-            _ => Err(HttpError::new("Unknown response status")),
+            _ => Err(HttpInternalError::new("Unknown response status")),
         }
     }
 }

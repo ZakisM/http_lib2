@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     io::{BufReader, BufWriter, Read, Write},
     net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
     sync::Arc,
@@ -7,24 +6,19 @@ use std::{
 };
 
 use crate::{
-    error::HttpError,
+    error::HttpInternalError,
     http_item::HttpItem,
     http_status::HttpStatus,
-    make_handler,
-    method::Method,
     pool::ThreadPool,
-    request::Request,
-    response::{HttpResponse, ResponseBuilder},
+    request::{Request, ServerRequest},
+    response::ResponseBuilder,
+    route::{Route, RouteKey, RouteMap},
     Result,
 };
 
-type HandlerFn = dyn Fn(Request) -> Box<dyn HttpResponse + Send + Sync> + Send + Sync;
-
-type Routes = HashMap<&'static str, HashMap<Method, Box<HandlerFn>>>;
-
 pub struct Server {
     address: SocketAddrV4,
-    routes: Routes,
+    pub(crate) routes: RouteMap,
 }
 
 impl std::fmt::Debug for Server {
@@ -35,28 +29,6 @@ impl std::fmt::Debug for Server {
     }
 }
 
-#[derive(Debug)]
-pub struct Route<'a> {
-    server: &'a mut Server,
-    uri: &'static str,
-}
-
-impl<'a> Route<'a> {
-    pub fn new(server: &'a mut Server, uri: &'static str) -> Self {
-        Self { server, uri }
-    }
-
-    make_handler!(get, Method::GET);
-    make_handler!(head, Method::HEAD);
-    make_handler!(post, Method::POST);
-    make_handler!(put, Method::PUT);
-    make_handler!(delete, Method::DELETE);
-    make_handler!(connect, Method::CONNECT);
-    make_handler!(options, Method::OPTIONS);
-    make_handler!(trace, Method::TRACE);
-    make_handler!(patch, Method::PATCH);
-}
-
 impl Server {
     pub fn new(address: [u8; 4], port: u16) -> Self {
         let address = SocketAddrV4::new(
@@ -64,7 +36,7 @@ impl Server {
             port,
         );
 
-        let routes = HashMap::new();
+        let routes = RouteMap::new();
 
         Self { address, routes }
     }
@@ -95,13 +67,15 @@ impl Server {
 
     fn handle_connection(
         stream: std::result::Result<TcpStream, std::io::Error>,
-        routes: &Routes,
+        routes: &RouteMap,
     ) -> Result<()> {
         let stream = stream?;
 
         stream.set_nodelay(true)?;
         stream.set_read_timeout(Some(Duration::from_secs(2)))?;
         stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+
+        let peer_address = stream.peer_addr()?;
 
         let req_s = stream;
         let res_s = req_s.try_clone()?;
@@ -112,9 +86,13 @@ impl Server {
         loop {
             match Request::from_stream(req_buf.by_ref()) {
                 Ok(req) => {
-                    let response = if let Some(all_handlers) = routes.get(req.header.uri.as_str()) {
-                        if let Some(handler) = all_handlers.get(&req.header.method) {
-                            let res = (handler)(req);
+                    let uri = RouteKey(req.header.uri.to_owned());
+
+                    let response = if let Some((route_key, route_handlers)) = routes.get(&uri) {
+                        if let Some(handler) = route_handlers.get(&req.header.method) {
+                            let server_req =
+                                ServerRequest::new(route_key.clone(), req, peer_address);
+                            let res = (handler)(server_req);
 
                             res.into_response()
                         } else {
@@ -129,7 +107,9 @@ impl Server {
                     response.write_to(res_buf.by_ref())?;
                 }
                 Err(e) => {
-                    if e != HttpError::DataTimeout {
+                    if e != HttpInternalError::DataTimeout
+                        && e != HttpInternalError::ConnectionTimeout
+                    {
                         eprintln!("{}", e);
                     }
 
@@ -140,30 +120,6 @@ impl Server {
 
         Ok(())
     }
-}
-
-#[macro_export]
-macro_rules! make_handler {
-    ($name: ident, $method: path) => {
-        pub fn $name<F, R>(self, handler: F) -> Self
-        where
-            F: Fn(Request) -> R + Send + Sync + 'static,
-            R: HttpResponse + Send + Sync + 'static,
-        {
-            let r = self
-                .server
-                .routes
-                .entry(self.uri)
-                .or_insert_with(HashMap::new);
-
-            let h =
-                Box::new(move |req| Box::new(handler(req)) as Box<dyn HttpResponse + Send + Sync>);
-
-            r.insert($method, h);
-
-            self
-        }
-    };
 }
 
 #[cfg(test)]

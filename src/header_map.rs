@@ -28,10 +28,10 @@ pub struct HeaderMap(pub HashMap<HeaderKey, String>);
 impl HeaderMap {
     pub fn from_lines(lines: Lines) -> Self {
         let headers = lines.fold(HashMap::new(), |mut curr, next| {
-            let header = next.split_once(':');
+            let header = next.split_once(": ");
 
             if let Some((k, v)) = header {
-                curr.insert(HeaderKey(k.trim().to_owned()), v.trim().to_owned());
+                curr.insert(HeaderKey(k.trim().to_owned()), v.to_owned());
             }
 
             curr

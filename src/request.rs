@@ -1,11 +1,14 @@
+use std::net::SocketAddr;
 use std::str::FromStr;
 
 use crate::body::Body;
-use crate::error::HttpError;
+use crate::error::{HttpError, HttpInternalError};
 use crate::header_item::HeaderItem;
 use crate::header_map::HeaderMap;
 use crate::http_item::HttpItem;
+use crate::http_status::HttpStatus;
 use crate::method::Method;
+use crate::route::RouteKey;
 
 #[derive(Debug, Default)]
 pub struct RequestBuilder {
@@ -63,6 +66,43 @@ impl RequestBuilder {
 }
 
 #[derive(Debug)]
+pub struct ServerRequest {
+    route_key: RouteKey,
+    pub request: Request,
+    pub peer_address: SocketAddr,
+}
+
+impl ServerRequest {
+    pub fn new(route_key: RouteKey, request: Request, peer_address: SocketAddr) -> Self {
+        Self {
+            route_key,
+            request,
+            peer_address,
+        }
+    }
+
+    pub fn path(&self, path_name: &'static str) -> std::result::Result<&str, HttpError> {
+        let path_name_delimited = format!("{{{}}}", path_name);
+
+        self.route_key
+            .0
+            .split('/')
+            .position(|r| r == path_name_delimited)
+            .and_then(|p| self.request.header.uri.split('/').nth(p))
+            .and_then(|res| if res.is_empty() { None } else { Some(res) })
+            .ok_or_else(|| {
+                HttpError::new(
+                    format!(
+                        "Missing path parameter '{}'. Expected a path following the pattern: {}.",
+                        path_name, self.route_key.0
+                    ),
+                    HttpStatus::BadRequest,
+                )
+            })
+    }
+}
+
+#[derive(Debug)]
 pub struct Request {
     pub header: RequestHeader,
     pub body: Body,
@@ -96,7 +136,7 @@ impl std::default::Default for RequestHeader {
 }
 
 impl FromStr for RequestHeader {
-    type Err = HttpError;
+    type Err = HttpInternalError;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let mut lines = s.lines();
@@ -104,22 +144,22 @@ impl FromStr for RequestHeader {
         let mut req_line = lines
             .next()
             .map(|l| l.split_whitespace())
-            .ok_or_else(|| HttpError::new("Failed to read request line"))?;
+            .ok_or_else(|| HttpInternalError::new("Failed to read request line"))?;
 
         let method = req_line
             .next()
             .and_then(|r| Method::from_str(r).ok())
-            .ok_or_else(|| HttpError::new("Failed to read request method"))?;
+            .ok_or_else(|| HttpInternalError::new("Failed to read request method"))?;
 
         let path = req_line
             .next()
-            .ok_or_else(|| HttpError::new("Failed to read request path"))?;
+            .ok_or_else(|| HttpInternalError::new("Failed to read request path"))?;
 
         let version = req_line
             .next()
             .and_then(|v| v.strip_prefix("HTTP/"))
             .and_then(|v| v.parse::<f32>().ok())
-            .ok_or_else(|| HttpError::new("Failed to read request version"))?;
+            .ok_or_else(|| HttpInternalError::new("Failed to read request version"))?;
 
         let headers = HeaderMap::from_lines(lines);
 

@@ -1,6 +1,6 @@
 use std::io::{BufReader, Read};
 
-use crate::{error::HttpError, Result};
+use crate::{error::HttpInternalError, Result};
 
 #[derive(Debug)]
 pub struct Body {
@@ -42,7 +42,7 @@ impl Body {
             .read_to_end(&mut contents)?;
 
         if r != content_length {
-            Err(HttpError::new(format!(
+            Err(HttpInternalError::new(format!(
                 "Failed to read all of the fixed content length, expected: {} but received: {}.",
                 content_length, r
             )))
@@ -108,7 +108,7 @@ impl Body {
         let contents_len = contents.len().try_into()?;
 
         if expected_length != contents_len {
-            Err(HttpError::new(format!(
+            Err(HttpInternalError::new(format!(
                 "Failed to read all of the chunked content length, expected: {} but received: {}.",
                 expected_length, contents_len
             )))

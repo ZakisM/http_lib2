@@ -1,4 +1,4 @@
-use error::HttpError;
+use error::HttpInternalError;
 
 pub mod body;
 pub mod error;
@@ -10,6 +10,7 @@ pub mod method;
 pub mod pool;
 pub mod request;
 pub mod response;
+pub mod route;
 pub mod server;
 
-type Result<T> = std::result::Result<T, HttpError>;
+type Result<T> = std::result::Result<T, HttpInternalError>;

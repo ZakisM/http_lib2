@@ -2,7 +2,7 @@ use std::io::Write;
 use std::str::FromStr;
 
 use crate::body::Body;
-use crate::error::HttpError;
+use crate::error::{HttpError, HttpInternalError};
 use crate::header_item::HeaderItem;
 use crate::header_map::HeaderMap;
 use crate::http_item::HttpItem;
@@ -21,13 +21,31 @@ impl HttpResponse for Response {
 
 impl HttpResponse for &'static str {
     fn into_response(self: Box<Self>) -> Response {
-        ResponseBuilder::new().body(self.as_bytes()).build()
+        ResponseBuilder::new().body(*self).build()
     }
 }
 
 impl HttpResponse for Vec<u8> {
     fn into_response(self: Box<Self>) -> Response {
         ResponseBuilder::new().body(*self).build()
+    }
+}
+
+impl HttpResponse for () {
+    fn into_response(self: Box<Self>) -> Response {
+        ResponseBuilder::new().body(Body::empty()).build()
+    }
+}
+
+impl<T: AsRef<[u8]>> HttpResponse for std::result::Result<T, HttpError> {
+    fn into_response(self: Box<Self>) -> Response {
+        match *self {
+            Ok(s) => ResponseBuilder::new().body(s).build(),
+            Err(e) => ResponseBuilder::new()
+                .status(HttpStatus::BadRequest)
+                .body(e.to_string())
+                .build(),
+        }
     }
 }
 
@@ -166,7 +184,7 @@ impl std::default::Default for ResponseHeader {
 }
 
 impl FromStr for ResponseHeader {
-    type Err = HttpError;
+    type Err = HttpInternalError;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let mut lines = s.lines();
@@ -174,23 +192,23 @@ impl FromStr for ResponseHeader {
         let mut status_line = lines
             .next()
             .map(|l| l.split_whitespace())
-            .ok_or_else(|| HttpError::new("Failed to read response status line"))?;
+            .ok_or_else(|| HttpInternalError::new("Failed to read response status line"))?;
 
         let version = status_line
             .next()
             .and_then(|v| v.strip_prefix("HTTP/"))
             .and_then(|v| v.parse::<f32>().ok())
-            .ok_or_else(|| HttpError::new("Failed to read response version"))?;
+            .ok_or_else(|| HttpInternalError::new("Failed to read response version"))?;
 
         let status_code = status_line
             .next()
             .and_then(|r| r.parse::<u16>().ok())
-            .ok_or_else(|| HttpError::new("Failed to read response status code"))?;
+            .ok_or_else(|| HttpInternalError::new("Failed to read response status code"))?;
 
         let reason_phrase = status_line
             .next()
             .map(|r| r.to_owned())
-            .ok_or_else(|| HttpError::new("Failed to read response reason phrase"))?;
+            .ok_or_else(|| HttpInternalError::new("Failed to read response reason phrase"))?;
 
         let headers = HeaderMap::from_lines(lines);
 

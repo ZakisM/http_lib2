@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::error::HttpError;
+use crate::error::HttpInternalError;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Method {
@@ -34,7 +34,7 @@ impl Display for Method {
 }
 
 impl FromStr for Method {
-    type Err = HttpError;
+    type Err = HttpInternalError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let method = match s {
@@ -47,7 +47,7 @@ impl FromStr for Method {
             "OPTIONS" => Method::OPTIONS,
             "TRACE" => Method::TRACE,
             "PATCH" => Method::PATCH,
-            _ => return Err(HttpError::new("Unknown HTTP method.")),
+            _ => return Err(HttpInternalError::new("Unknown HTTP method.")),
         };
 
         Ok(method)

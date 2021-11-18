@@ -1,4 +1,4 @@
-use crate::{body::Body, error::HttpError, header_item::HeaderItem, Result};
+use crate::{body::Body, error::HttpInternalError, header_item::HeaderItem, Result};
 use std::{
     io::{BufReader, Read},
     net::TcpStream,
@@ -13,7 +13,7 @@ pub trait HttpItem {
     fn from_stream(buf_stream: &mut BufReader<TcpStream>) -> Result<Self>
     where
         Self::Header: FromStr,
-        HttpError: From<<Self::Header as FromStr>::Err>,
+        HttpInternalError: From<<Self::Header as FromStr>::Err>,
         Self: Sized,
     {
         let header = Self::Header::from_stream(buf_stream.by_ref())?;

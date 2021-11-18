@@ -113,7 +113,7 @@ impl ThreadPool {
     fn num_cpus() -> Result<usize> {
         use std::process::{Command, Stdio};
 
-        use crate::error::HttpError;
+        use crate::error::HttpInternalError;
 
         let sysctl_cmd = Command::new("sysctl")
             .arg("-n")
@@ -122,12 +122,12 @@ impl ThreadPool {
             .output()?;
 
         let cpus = String::from_utf8(sysctl_cmd.stdout)
-            .map_err(HttpError::from)
+            .map_err(HttpInternalError::from)
             .and_then(|s| {
                 s.lines()
                     .next()
                     .and_then(|s| s.parse::<usize>().ok())
-                    .ok_or_else(|| HttpError::new("Failed to read sysctl output"))
+                    .ok_or_else(|| HttpInternalError::new("Failed to read sysctl output"))
             })?;
 
         Ok(cpus)
