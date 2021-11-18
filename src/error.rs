@@ -1,3 +1,5 @@
+use std::io::ErrorKind;
+
 use crate::{convert_error, http_status::HttpStatus};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -53,7 +55,7 @@ impl std::error::Error for HttpInternalError {}
 impl From<std::io::Error> for HttpInternalError {
     fn from(e: std::io::Error) -> Self {
         match e.kind() {
-            std::io::ErrorKind::WouldBlock => Self::ConnectionTimeout,
+            ErrorKind::WouldBlock | ErrorKind::ConnectionReset => Self::ConnectionTimeout,
             _ => Self::new(e.to_string()),
         }
     }
