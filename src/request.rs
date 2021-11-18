@@ -81,7 +81,10 @@ impl ServerRequest {
         }
     }
 
-    pub fn path(&self, path_name: &'static str) -> std::result::Result<&str, HttpError> {
+    pub fn path<T>(&self, path_name: &'static str) -> std::result::Result<T, HttpError>
+    where
+        T: FromStr,
+    {
         let path_name_delimited = format!("{{{}}}", path_name);
 
         self.route_key
@@ -98,6 +101,18 @@ impl ServerRequest {
                     ),
                     HttpStatus::BadRequest,
                 )
+            })
+            .and_then(|res| {
+                res.parse::<T>().map_err(|_| {
+                    HttpError::new(
+                        format!(
+                            "Invalid path parameter type. Expected path parameter '{}' to be of type {}.",
+                            path_name,
+                            std::any::type_name::<T>()
+                        ),
+                        HttpStatus::BadRequest,
+                    )
+                })
             })
     }
 }
