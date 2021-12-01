@@ -1,9 +1,10 @@
-use crate::{body::Body, error::HttpInternalError, header_item::HeaderItem, Result};
 use std::{
     io::{BufReader, Read},
     net::TcpStream,
     str::FromStr,
 };
+
+use crate::{body::Body, error::HttpInternalError, header_item::HeaderItem, Result};
 
 pub trait HttpItem {
     type Header: HeaderItem;

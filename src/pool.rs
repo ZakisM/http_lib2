@@ -135,13 +135,16 @@ impl ThreadPool {
 
     #[cfg(target_os = "linux")]
     fn num_cpus() -> Result<usize> {
-        Ok(8)
+        let cpu_info = std::fs::read_to_string("/proc/cpuinfo")?;
+
+        let cpus = cpu_info.lines().filter(|l| l.contains("processor")).count();
+
+        Ok(cpus)
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     #[test]
     fn test_get_num_cpus() {
         use super::*;
@@ -153,5 +156,8 @@ mod tests {
 
         #[cfg(target_os = "macos")]
         assert_eq!(cpus, 16);
+
+        #[cfg(target_os = "linux")]
+        assert_eq!(cpus, 8);
     }
 }
