@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
@@ -9,6 +10,7 @@ use crate::http_item::HttpItem;
 use crate::http_status::HttpStatus;
 use crate::method::Method;
 use crate::route::RouteKey;
+use crate::Result;
 
 #[derive(Debug, Default)]
 pub struct RequestBuilder {
@@ -128,6 +130,24 @@ impl HttpItem for Request {
 
     fn from_header_body(header: Self::Header, body: Body) -> Self {
         Self { header, body }
+    }
+
+    fn as_bytes(&self) -> Result<Vec<u8>> {
+        let mut bytes = Vec::new();
+
+        write!(
+            bytes,
+            "{} {} HTTP/{}\r\n",
+            self.header.method, self.header.uri, self.header.version
+        )?;
+
+        self.header.header_map.write_to(&mut bytes)?;
+
+        write!(bytes, "\r\n")?;
+
+        bytes.extend_from_slice(&self.body.contents);
+
+        Ok(bytes)
     }
 }
 

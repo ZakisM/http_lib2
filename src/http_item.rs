@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::{
     io::{BufReader, Read},
     net::TcpStream,
@@ -33,5 +34,16 @@ pub trait HttpItem {
         let res = Self::from_header_body(header, body);
 
         Ok(res)
+    }
+
+    fn as_bytes(&self) -> Result<Vec<u8>>;
+
+    fn write_to<T: Write>(&self, writer: &mut T) -> Result<()> {
+        let bytes = self.as_bytes()?;
+
+        writer.write_all(&bytes)?;
+        writer.flush()?;
+
+        Ok(())
     }
 }

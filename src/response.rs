@@ -131,10 +131,8 @@ impl HttpItem for Response {
     fn from_header_body(header: Self::Header, body: Body) -> Self {
         Self { header, body }
     }
-}
 
-impl Response {
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    fn as_bytes(&self) -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
 
         write!(
@@ -151,14 +149,17 @@ impl Response {
 
         Ok(bytes)
     }
+}
 
-    pub fn write_to<T: Write>(&self, writer: &mut T) -> Result<()> {
-        let bytes = self.to_bytes()?;
+impl Response {
+    pub fn text(self) -> Result<String> {
+        let res = String::from_utf8(self.body.contents)?;
 
-        writer.write_all(&bytes)?;
-        writer.flush()?;
+        Ok(res)
+    }
 
-        Ok(())
+    pub fn bytes(self) -> Vec<u8> {
+        self.body.contents
     }
 }
 

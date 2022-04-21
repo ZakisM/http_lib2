@@ -77,14 +77,14 @@ impl Server {
 
         let peer_address = stream.peer_addr()?;
 
-        let req_s = stream;
-        let res_s = req_s.try_clone()?;
+        let read_s = stream;
+        let write_s = read_s.try_clone()?;
 
-        let mut req_buf = BufReader::new(req_s);
-        let mut res_buf = BufWriter::new(res_s);
+        let mut read_buf = BufReader::new(read_s);
+        let mut write_buf = BufWriter::new(write_s);
 
         loop {
-            match Request::from_stream(req_buf.by_ref()) {
+            match Request::from_stream(read_buf.by_ref()) {
                 Ok(req) => {
                     let uri = RouteKey(req.header.uri.to_owned());
 
@@ -104,7 +104,7 @@ impl Server {
                         ResponseBuilder::new().status(HttpStatus::NotFound).build()
                     };
 
-                    response.write_to(res_buf.by_ref())?;
+                    response.write_to(write_buf.by_ref())?;
                 }
                 Err(e) => {
                     if e != HttpInternalError::DataTimeout
